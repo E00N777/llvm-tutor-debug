@@ -335,6 +335,11 @@ This is implemented in
 on
 [line 106](https://github.com/banach-space/llvm-tutor/blob/main/lib/OpcodeCounter.cpp#L106-L110).
 
+### Debug OpcodeCounter Pass
+Moments Later
+....
+
+
 ## InjectFuncCall
 This pass is a _HelloWorld_ example for _code instrumentation_. For every function
 defined in the input module, **InjectFuncCall** will add (_inject_) the following
@@ -400,6 +405,33 @@ print `Hello from` is determined at either:
 Also, note that in the case of **InjectFuncCall** we had to first run the pass
 with **opt** and then execute the instrumented IR module in order to see the
 output.  For **HelloWorld** it was sufficient to run the pass with **opt**.
+
+### InjectFucCallRet
+I simply modified the logic of InjectFuncCall, changing the insertion point from the function entry to before the return instruction (for the printf call).
+
+Before code:
+```
+IRBuilder<> Builder(&*F.getEntryBlock().getFirstInsertionPt());
+auto FuncName = Builder.CreateGlobalString(F.getName());
+```
+
+After code:
+```
+ for (auto &BB : F) {
+      for (auto &Inst : BB)
+      {
+        if(isa<ReturnInst>(Inst))
+        {
+          Instruction *RetInst  = dyn_cast<ReturnInst>(&Inst);
+          
+          IRBuilder<> Builder(RetInst);
+
+          ....
+
+        }
+      }
+    }
+```
 
 ## StaticCallCounter
 The **StaticCallCounter** pass counts the number of _static_ function calls in
