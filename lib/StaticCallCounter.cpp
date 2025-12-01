@@ -50,6 +50,9 @@ StaticCallCounter::Result StaticCallCounter::runOnModule(Module &M) {
         // If CB is a direct function call then DirectInvoc will be not null.
         auto DirectInvoc = CB->getCalledFunction();
         if (nullptr == DirectInvoc) {
+          //Retrun the called value in IR
+          Value *CalledVal=CB->getCalledOperand();
+          llvm::errs() <<"Indirect call found: " << *CalledVal << "\n";
           continue;
         }
 

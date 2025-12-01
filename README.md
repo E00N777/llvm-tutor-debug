@@ -481,6 +481,34 @@ that corresponds to **StaticCallCounter** (by passing
 `-passes="print<static-cc>"` to **opt**). We discussed printing passes in more
 detail [here](#run-the-pass).
 
+### Unroll the loop
+I add a simple demo input_for_loop.c
+
+```
+clang-21  -O3 -emit-llvm -S -fonroll-loops input_for_loop.c -o input_for_loop.ll
+
+opt-21 -load-pass-plugin <dir/lib.so> -passes="print<static-cc>" input_for_loop.ll
+```
+
+You could use `-fonroll-loops`with `-O3` to unroll the loop,you may see the .ll like this:
+```
+; Function Attrs: nofree nounwind uwtable
+define dso_local noundef i32 @main() local_unnamed_addr #0 {
+  %1 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %2 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %3 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %4 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %5 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %6 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %7 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %8 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %9 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  %10 = tail call i32 @puts(ptr nonnull dereferenceable(1) @str)
+  ret i32 0
+}
+```
+Run the StaticCallCounter and you will see eleven times call.
+
 ### Run the pass through `static`
 You can run **StaticCallCounter** through a standalone tool called `static`.
 `static` is an LLVM based tool implemented in
@@ -494,6 +522,18 @@ without the need for **opt**:
 It is an example of a relatively basic static analysis tool. Its implementation
 demonstrates how basic pass management in LLVM works (i.e. it handles that for
 itself instead of relying on **opt**).
+
+### Others
+Although this pass cannot recognize indirect calls, we can see what is being called by these code:
+```
+auto DirectInvoc = CB->getCalledFunction();
+        if (nullptr == DirectInvoc) {
+          //Retrun the called value in IR
+          Value *CalledVal=CB->getCalledOperand();
+          llvm::errs() <<"Indirect call found: " << *CalledVal << "\n";
+          continue;
+        }
+```
 
 ## DynamicCallCounter
 The **DynamicCallCounter** pass counts the number of _run-time_ (i.e.
