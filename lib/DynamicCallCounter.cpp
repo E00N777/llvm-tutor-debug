@@ -94,18 +94,26 @@ bool DynamicCallCounter::runOnModule(Module &M) {
 
     // Create a global variable to count the calls to this function
     std::string CounterName = "CounterFor_" + std::string(F.getName());
+    //debug:97 Constant *Var = CreateGlobalCounter(M, CounterName);
+    //(gdb) p CounterName
+    //$1 = "CounterFor_foo"
     Constant *Var = CreateGlobalCounter(M, CounterName);
+    //
     CallCounterMap[F.getName()] = Var;
 
     // Create a global variable to hold the name of this function
     auto FuncName = Builder.CreateGlobalString(F.getName());
     FuncNameMap[F.getName()] = FuncName;
+    //get func for print func cuz we need to print func name later
 
     // Inject instruction to increment the call count each time this function
     // executes
     LoadInst *Load2 = Builder.CreateLoad(IntegerType::getInt32Ty(CTX), Var);
+    //%1 = load i32, ptr @CounterFor_foo, align 4
     Value *Inc2 = Builder.CreateAdd(Builder.getInt32(1), Load2);
+    //%2 = add i32 1, %1
     Builder.CreateStore(Inc2, Var);
+    //store i32 %2, ptr @CounterFor_foo, align 4
 
     // The following is visible only if you pass -debug on the command line
     // *and* you have an assert build.
@@ -126,18 +134,26 @@ bool DynamicCallCounter::runOnModule(Module &M) {
   // It corresponds to the following C declaration:
   //    int printf(char *, ...)
   PointerType *PrintfArgTy = PointerType::getUnqual(Type::getInt8Ty(CTX));
+  //char * 8bit ptr
   FunctionType *PrintfTy =
       FunctionType::get(IntegerType::getInt32Ty(CTX), PrintfArgTy,
                         /*IsVarArgs=*/true);
+  //func signature  return int 32bit, first arg char* (8bit ptr), var args
 
   FunctionCallee Printf = M.getOrInsertFunction("printf", PrintfTy);
+  //check if printf is already in the module, if not insert it with the above signature
+  //we got something like this now:
+  //int printf(const char *format, ...); c style
+  //llvm ir:declare i32 @printf(i8*, ...)
 
   // Set attributes as per inferLibFuncAttributes in BuildLibCalls.cpp
   Function *PrintfF = dyn_cast<Function>(Printf.getCallee());
   PrintfF->setDoesNotThrow();
   PrintfF->addParamAttr(0, llvm::Attribute::getWithCaptureInfo(
                                M.getContext(), llvm::CaptureInfo::none()));
+  //don't caputure ptr
   PrintfF->addParamAttr(0, Attribute::ReadOnly);
+  //first arg is read only
 
   // STEP 3: Inject a global variable that will hold the printf format string
   // ------------------------------------------------------------------------
