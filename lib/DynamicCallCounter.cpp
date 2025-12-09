@@ -159,9 +159,10 @@ bool DynamicCallCounter::runOnModule(Module &M) {
   // ------------------------------------------------------------------------
   llvm::Constant *ResultFormatStr =
       llvm::ConstantDataArray::getString(CTX, "%-20s %-10lu\n");
-
+    //create a global string constant with the format we want to use to print results
   Constant *ResultFormatStrVar =
       M.getOrInsertGlobal("ResultFormatStrIR", ResultFormatStr->getType());
+    //insert a global variable into the module to hold the format string
   dyn_cast<GlobalVariable>(ResultFormatStrVar)->setInitializer(ResultFormatStr);
 
   std::string out = "";
@@ -194,13 +195,16 @@ bool DynamicCallCounter::runOnModule(Module &M) {
   FunctionType *PrintfWrapperTy =
       FunctionType::get(llvm::Type::getVoidTy(CTX), {},
                         /*IsVarArgs=*/false);
+  //void printf_wrapper()
   Function *PrintfWrapperF = dyn_cast<Function>(
       M.getOrInsertFunction("printf_wrapper", PrintfWrapperTy).getCallee());
+  //get or insert function into module
 
   // Create the entry basic block for printf_wrapper ...
   llvm::BasicBlock *RetBlock =
       llvm::BasicBlock::Create(CTX, "enter", PrintfWrapperF);
   IRBuilder<> Builder(RetBlock);
+  //fill the basic block with instructions
 
   // ... and start inserting calls to printf
   // (printf requires i8*, so cast the input strings accordingly)
@@ -208,6 +212,10 @@ bool DynamicCallCounter::runOnModule(Module &M) {
       Builder.CreatePointerCast(ResultHeaderStrVar, PrintfArgTy);
   llvm::Value *ResultFormatStrPtr =
       Builder.CreatePointerCast(ResultFormatStrVar, PrintfArgTy);
+  //cast global vars to i8* (char*)
+  //llvm::Constant *ResultFormatStr =
+  // llvm::ConstantDataArray::getString(CTX, "%-20s %-10lu\n");
+  // it is array not a pointer, so we need to cast it
 
   Builder.CreateCall(Printf, {ResultHeaderStrPtr});
 
@@ -215,6 +223,8 @@ bool DynamicCallCounter::runOnModule(Module &M) {
   for (auto &item : CallCounterMap) {
     LoadCounter = Builder.CreateLoad(IntegerType::getInt32Ty(CTX), item.second);
     // LoadCounter = Builder.CreateLoad(item.second);
+    // This is the real function call counter
+    
     Builder.CreateCall(
         Printf, {ResultFormatStrPtr, FuncNameMap[item.first()], LoadCounter});
   }
