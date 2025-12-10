@@ -589,6 +589,42 @@ the instrumented binary_ to see the output. This is similar to what we observed
 when comparing [HelloWorld and InjectFuncCall](#injectfunccall-vs-helloworld).
 
 ## MyDynamicCallCounter
+### Version 1: Extended Runtime Profiling
+**MyDynamicCallCounter** is an extension of the standard **DynamicCallCounter** pass. In addition to counting the number of times each function is executed at runtime, it also captures and reports the **arity** (number of arguments) of each function.
+
+This demonstrates how to manage multiple global variables for instrumentation and how to pass different types of data (strings, runtime counters, and compile-time constants) to a printf wrapper injected into the IR.
+
+### Run the pass
+
+We will use `input_for_hello.c` (or any C file) to test **MyDynamicCallCounter**.
+
+```bash
+# 1. Compile C source to LLVM Bitcode
+$LLVM_DIR/bin/clang -emit-llvm -c input_for_cc.c -o input_for_cc.bc
+
+# 2. Instrument the input file using your plugin
+# Note the pass name is "my-dynamic-cc" matching your registration code
+$LLVM_DIR/bin/opt -load-pass-plugin=build/lib/libMyDynamicCallCounter.so -passes="my-dynamic-cc" input_for_hello.bc -o instrumented.bin
+
+# 3. Run the instrumented binary
+# This executes the code using the LLVM interpreter
+$LLVM_DIR/bin/lli ./instrumented.bin
+```
+
+You will see following output:
+```
+=================================================
+LLVM-TUTOR: mydynamic analysis results
+=================================================
+NAME     #N DIRECT CALLS     #N FUNC ARGS 
+-------------------------------------------------
+bar                  2          2
+main                 1          2
+foo                  3          1
+fez                  1          3
+```
+**Note that the argument count is a compile-time constant, so these complex runtime operations are technically redundant. We will address this optimization in Version 2**
+
 
 ## Mixed Boolean Arithmetic Transformations
 These passes implement [mixed
