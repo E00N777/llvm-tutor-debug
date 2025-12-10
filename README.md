@@ -588,6 +588,8 @@ also that for **StaticCallCounter** it was sufficient to run the pass through
 the instrumented binary_ to see the output. This is similar to what we observed
 when comparing [HelloWorld and InjectFuncCall](#injectfunccall-vs-helloworld).
 
+## MyDynamicCallCounter
+
 ## Mixed Boolean Arithmetic Transformations
 These passes implement [mixed
 boolean arithmetic](https://tel.archives-ouvertes.fr/tel-01623849/document)
