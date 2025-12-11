@@ -1,49 +1,4 @@
-//========================================================================
-// FILE:
-//    MyDynamicCallCounter.cpp
-// AUTHOR:
-//      @E00N777
-// DESCRIPTION:
-//    Counts dynamic function calls and records function arity (number of
-//    arguments) in a module. `Dynamic` in this context means runtime
-//    function calls. Note that runtime calls can only be analysed while
-//    the underlying module is executing.
-//
-//    This pass extends the standard DynamicCallCounter by adding logic to
-//    track and report the number of arguments for each function. specifically:
-//      1. For every function F _defined_ in M:
-//           * defines a global variable, `i32 CounterFor_F`, initialised with 0
-//           * defines a global variable, `i32 ArgNumFor_F`, to hold the arity
-//           * adds instructions at the beginning of F that:
-//               - increment `CounterFor_F` every time F executes
-//               - store the argument count of F into `ArgNumFor_F`
-//      2. At the end of the module (after `main`), calls `printf_wrapper` that
-//         prints the results (Function Name, Call Count, Argument Count).
-//         The definition of `printf_wrapper` is also inserted by this pass.
-//
-//    To illustrate, the following code will be injected at the beginning of
-//    function F (defined in the input module):
-//    ```IR
-//      ; Update Call Counter
-//      %1 = load i32, i32* @CounterFor_F
-//      %2 = add i32 1, %1
-//      store i32 %2, i32* @CounterFor_F
-//
-//      ; Store Argument Number
-//      store i32 <ArgNum>, i32* @ArgNumFor_F
-//    ```
-//
-//    This pass will only instrument functions _defined_ in the input module.
-//    Functions that are only _declared_ (and defined elsewhere) are ignored.
-//
-// USAGE:
-//      $ opt -load-pass-plugin <BUILD_DIR>/lib/libMyDynamicCallCounter.so 
-//        -passes="my-dynamic-cc" <bitcode-file> -o instrumented.bin
-//      $ lli instrumented.bin
-//
-// License: MIT
-//========================================================================
-#include "MyDynamicCallCounter.h"
+#include "MyDynamicCallCounterV2.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -52,7 +7,8 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "my-dynamic-cc"
+#define DEBUG_TYPE "my-dynamic-cc-v2"
+
 
 Constant *CreateGlobalCounter(Module &M, StringRef GlobalVarName) {
   auto &CTX = M.getContext();
@@ -70,8 +26,7 @@ Constant *CreateGlobalCounter(Module &M, StringRef GlobalVarName) {
   return NewGlobalVar;
 }
 
-
-bool MyDynamicCallCounter::runOnModule(Module &M)
+bool MyDynamicCallCounterV2::runOnModule(Module &M)
 {
     bool Instrumented = false;
 
@@ -79,8 +34,6 @@ bool MyDynamicCallCounter::runOnModule(Module &M)
   llvm::StringMap<Constant *> CallCounterMap;
   // Function name <--> IR variable that holds the function name
   llvm::StringMap<Constant *> FuncNameMap;
-  // Function args number map
-  llvm::StringMap<Constant *> FuncArgNumMap;
 
   auto &CTX = M.getContext();
 
@@ -98,17 +51,10 @@ bool MyDynamicCallCounter::runOnModule(Module &M)
     //debug:97 Constant *Var = CreateGlobalCounter(M, CounterName);
     //(gdb) p CounterName
     //$1 = "CounterFor_foo"
-    std::string ArgNumName= "ArgNumFor_" + std::string(F.getName());
 
-    Constant *ArgsNumVar = CreateGlobalCounter(M, ArgNumName);
     Constant *Var = CreateGlobalCounter(M, CounterName);
     
     CallCounterMap[F.getName()] = Var;
-    FuncArgNumMap[F.getName()] = ArgsNumVar;
-
-    //get func args number for print func cuz we need to print func args number later
-    uint32_t argNum = F.arg_size();
-    Builder.CreateStore(Builder.getInt32(argNum), ArgsNumVar);
 
     // Create a global variable to hold the name of this function
     auto FuncName = Builder.CreateGlobalString(F.getName());
@@ -229,16 +175,18 @@ bool MyDynamicCallCounter::runOnModule(Module &M)
   Builder.CreateCall(Printf, {ResultHeaderStrPtr});
 
   LoadInst *LoadCounter;
-  LoadInst *LoadArgNum;
+  
   for (auto &item : CallCounterMap) {
     LoadCounter = Builder.CreateLoad(IntegerType::getInt32Ty(CTX), item.second);
     // LoadCounter = Builder.CreateLoad(item.second);
     // This is the real function call counter
-    Constant * ArgNumVar = FuncArgNumMap[item.first()];
-    LoadArgNum = Builder.CreateLoad(IntegerType::getInt32Ty(CTX), ArgNumVar);
-    // LoadArgNum = Builder.CreateLoad(ArgNumVar);
+    Constant * ArgNumVar = FuncNameMap[item.first()];
+    Function* Func = M.getFunction(item.first());
+    uint32_t argNum = Func->arg_size();
+    Value* ArgNumValue = Builder.getInt32(argNum);
+    //we don't need load store for arg num since it's constant
     Builder.CreateCall(
-        Printf, {ResultFormatStrPtr, FuncNameMap[item.first()], LoadCounter, LoadArgNum});
+        Printf, {ResultFormatStrPtr, FuncNameMap[item.first()], LoadCounter,ArgNumValue});
   }
 
   // Finally, insert return instruction
@@ -251,8 +199,7 @@ bool MyDynamicCallCounter::runOnModule(Module &M)
   return true;
 }
 
-
-PreservedAnalyses MyDynamicCallCounter::run(llvm::Module &M,
+PreservedAnalyses MyDynamicCallCounterV2::run(llvm::Module &M,
                                           llvm::ModuleAnalysisManager &) {
   bool Changed = runOnModule(M);
 
@@ -262,20 +209,17 @@ PreservedAnalyses MyDynamicCallCounter::run(llvm::Module &M,
 
 
 
-
-
-
 //-----------------------------------------------------------------------------
 // New PM Registration
 //-----------------------------------------------------------------------------
-llvm::PassPluginLibraryInfo getMyDynamicCallCounterPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "my-dynamic-cc", LLVM_VERSION_STRING,
+llvm::PassPluginLibraryInfo getMyDynamicCallCounterV2PluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "my-dynamic-cc-v2", LLVM_VERSION_STRING,
           [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, ModulePassManager &MPM,
                    ArrayRef<PassBuilder::PipelineElement>) {
-                  if (Name == "my-dynamic-cc") {
-                    MPM.addPass(MyDynamicCallCounter());
+                  if (Name == "my-dynamic-cc-v2") {
+                    MPM.addPass(MyDynamicCallCounterV2());
                     return true;
                   }
                   return false;
@@ -285,5 +229,5 @@ llvm::PassPluginLibraryInfo getMyDynamicCallCounterPluginInfo() {
 
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
-  return getMyDynamicCallCounterPluginInfo();
+  return getMyDynamicCallCounterV2PluginInfo();
 }

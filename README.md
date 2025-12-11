@@ -594,7 +594,7 @@ when comparing [HelloWorld and InjectFuncCall](#injectfunccall-vs-helloworld).
 
 This demonstrates how to manage multiple global variables for instrumentation and how to pass different types of data (strings, runtime counters, and compile-time constants) to a printf wrapper injected into the IR.
 
-### Run the pass
+#### Run the pass
 
 We will use `input_for_hello.c` (or any C file) to test **MyDynamicCallCounter**.
 
@@ -625,6 +625,47 @@ fez                  1          3
 ```
 **Note that the argument count is a compile-time constant, so these complex runtime operations are technically redundant. We will address this optimization in Version 2**
 
+### Version 2: Compile-Time Optimization (Hard-coded Arguments)
+
+In **Version 1**, we treated the function argument count (`arg_size`) as a runtime variable. We created a global variable for every function and injected `Store` instructions to save this value at runtime. 
+
+However, the number of arguments a function accepts is known at **compile-time** and never changes. Therefore, the runtime overhead of Version 1 is technically redundant.
+
+**MyDynamicCallCounterV2** optimizes this by removing the unnecessary global variables and memory operations. Instead, it "bakes" the integer constant directly into the `printf` call arguments during the instrumentation phase.
+
+#### Key Changes
+* **Removed:** The `FuncArgNumMap` and all associated global variables (`ArgNumFor_...`).
+* **Removed:** The runtime `Store` and `Load` instructions for argument counts inside the instrumented functions.
+* **Added:** Direct insertion of `ConstantInt` (immediate values) into the `printf_wrapper` call.
+
+#### Run the pass
+
+The usage is identical to Version 1, but we use the **V2** library and pass name.
+
+```bash
+# 1. Compile C source to LLVM Bitcode
+$LLVM_DIR/bin/clang -emit-llvm -c input_for_hello.c -o input_for_hello.bc
+
+# 2. Instrument using the V2 pass
+# Note: The library name is libMyDynamicCallCounterV2.so
+# Note: The pass name is "my-dynamic-cc-v2"
+$LLVM_DIR/bin/opt -load-pass-plugin=build/lib/libMyDynamicCallCounterV2.so -passes="my-dynamic-cc-v2" input_for_hello.bc -o instrumented_v2.bin
+
+# 3. Run the instrumented binary
+$LLVM_DIR/bin/lli ./instrumented_v2.bin
+```
+You will see the same output like this:
+```
+=================================================
+LLVM-TUTOR: mydynamic analysis results
+=================================================
+NAME     #N DIRECT CALLS     #N FUNC ARGS 
+-------------------------------------------------
+bar                  2          2
+main                 1          2
+foo                  3          1
+fez                  1          3
+```
 
 ## Mixed Boolean Arithmetic Transformations
 These passes implement [mixed

@@ -4,6 +4,7 @@ set(LLVM_TUTOR_PLUGINS
     StaticCallCounter
     DynamicCallCounter
     MyDynamicCallCounter
+    MyDynamicCallCounterV2
     FindFCmpEq
     ConvertFCmpEq
     InjectFuncCall
@@ -22,6 +23,8 @@ set(DynamicCallCounter_SOURCES
   DynamicCallCounter.cpp)
 set(MyDynamicCallCounter_SOURCES
   MyDynamicCallCounter.cpp)
+set(MyDynamicCallCounterV2_SOURCES
+  MyDynamicCallCounterV2.cpp)
 set(FindFCmpEq_SOURCES
   FindFCmpEq.cpp)
 set(ConvertFCmpEq_SOURCES
