@@ -180,7 +180,6 @@ bool MyDynamicCallCounterV2::runOnModule(Module &M)
     LoadCounter = Builder.CreateLoad(IntegerType::getInt32Ty(CTX), item.second);
     // LoadCounter = Builder.CreateLoad(item.second);
     // This is the real function call counter
-    Constant * ArgNumVar = FuncNameMap[item.first()];
     Function* Func = M.getFunction(item.first());
     uint32_t argNum = Func->arg_size();
     Value* ArgNumValue = Builder.getInt32(argNum);

@@ -700,6 +700,46 @@ $LLVM_DIR/bin/clang -emit-llvm -S <source_dir>/inputs/input_for_mba_sub.c -o inp
 $LLVM_DIR/bin/opt -load-pass-plugin=<build_dir>/lib/libMBASub.so -passes="mba-sub" -S input_for_sub.ll -o out.ll
 ```
 
+### MBASubCrash
+The implementation intentionally uses a C++ range-based for loop (for (auto &Inst : BB)) while calling ReplaceInstWithInst inside the loop body. This function deletes the current instruction, which invalidates the loop's internal iterator. Consequently, when the loop attempts to increment the iterator to process the next instruction, it accesses freed memory, leading to a Segmentation Fault or an Assertion Failure.
+
+You may see somethin like this:
+```bash
+$ opt-21 -load-pass-plugin=/home/ubuntu/llvm-tutor/build/lib/libMBASubCrash.so -passes="mba-sub-crash" -S simple_mba
+.ll -o out_simple_mba.ll
+opt-21: /usr/include/llvm-21/llvm/Support/Casting.h:662: decltype(auto) llvm::dyn_cast(From*) [with To = BinaryOperator; From = Instruction]: Assertion `detail::isPresent(Val) && "dyn_cast on a non-existent value"' failed.
+PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace.
+Stack dump:
+0.      Program arguments: opt-21 -load-pass-plugin=/home/ubuntu/llvm-tutor/build/lib/libMBASubCrash.so -passes=mba-sub-crash -S simple_mba.ll -o out_simple_mba.ll
+1.      Running pass "function(MBASubCrash)" on module "simple_mba.ll"
+2.      Running pass "MBASubCrash" on function "foo"
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  libLLVM.so.21.1   0x00007df92e9be316 llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 54
+1  libLLVM.so.21.1   0x00007df92e9bbbc3 llvm::sys::RunSignalHandlers() + 131
+2  libLLVM.so.21.1   0x00007df92e9bf044
+3  libc.so.6         0x00007df92d645330
+4  libc.so.6         0x00007df92d69eb2c pthread_kill + 284
+5  libc.so.6         0x00007df92d64527e gsignal + 30
+6  libc.so.6         0x00007df92d6288ff abort + 223
+7  libc.so.6         0x00007df92d62881b
+8  libc.so.6         0x00007df92d63b517
+9  libMBASubCrash.so 0x00007df92dcdbdfb
+10 libMBASubCrash.so 0x00007df92dcd8a50 MBASubCrash::runOnBasicBlock(llvm::BasicBlock&) + 168
+11 libMBASubCrash.so 0x00007df92dcd8de2 MBASubCrash::run(llvm::Function&, llvm::AnalysisManager<llvm::Function>&) + 124
+12 libMBASubCrash.so 0x00007df92dcdf3f1
+13 libLLVM.so.21.1   0x00007df92eb61e67 llvm::PassManager<llvm::Function, llvm::AnalysisManager<llvm::Function>>::run(llvm::Function&, llvm::AnalysisManager<llvm::Function>&) + 327
+14 libLLVM.so.21.1   0x00007df930edd48d
+15 libLLVM.so.21.1   0x00007df92eb66625 llvm::ModuleToFunctionPassAdaptor::run(llvm::Module&, llvm::AnalysisManager<llvm::Module>&) + 325
+16 libLLVM.so.21.1   0x00007df930eddc8d
+17 libLLVM.so.21.1   0x00007df92eb60c37 llvm::PassManager<llvm::Module, llvm::AnalysisManager<llvm::Module>>::run(llvm::Module&, llvm::AnalysisManager<llvm::Module>&) + 327
+18 opt-21            0x00005ee9c01dc731 llvm::runPassPipeline(llvm::StringRef, llvm::Module&, llvm::TargetMachine*, llvm::TargetLibraryInfoImpl*, llvm::ToolOutputFile*, llvm::ToolOutputFile*, llvm::ToolOutputFile*, llvm::StringRef, llvm::ArrayRef<llvm::PassPlugin>, llvm::ArrayRef<std::function<void (llvm::PassBuilder&)>>, llvm::opt_tool::OutputKind, llvm::opt_tool::VerifierKind, bool, bool, bool, bool, bool, bool, bool) + 13937
+19 opt-21            0x00005ee9c01d1489 optMain + 7305
+20 libc.so.6         0x00007df92d62a1ca
+21 libc.so.6         0x00007df92d62a28b __libc_start_main + 139
+22 opt-21            0x00005ee9c01cba45 _start + 37
+已中止 (核心已转储)
+```
+
 ### MBAAdd
 The **MBAAdd** pass implements a slightly more involved formula that is only
 valid for 8 bit integers:

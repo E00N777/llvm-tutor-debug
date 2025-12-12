@@ -1,23 +1,12 @@
 //==============================================================================
 // FILE:
-//    MBASub.cpp
+//    MBASub.cpp (BROKEN VERSION for educational purposes)
 //
 // DESCRIPTION:
-//    Obfuscation for integer sub instructions through Mixed Boolean Arithmetic
-//    (MBA). This pass performs an instruction substitution based on this
-//    equality:
-//      a - b == (a + ~b) + 1
-//    See formula 2.2 (j) in [1].
-//
-// USAGE:
-//      $ opt -load-pass-plugin <BUILD_DIR>/lib/libMBASub.so `\`
-//        -passes=-"mba-sub" <bitcode-file>
-//
-//  [1] "Hacker's Delight" by Henry S. Warren, Jr.
-//
-// License: MIT
+//    Demonstrates Iterator Invalidation crash.
 //==============================================================================
-#include "MBASub.h"
+
+#include "MBASubCrash.h"
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/IRBuilder.h"
@@ -29,80 +18,32 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "mba-sub"
+#define DEBUG_TYPE "mba-sub-crash"
 
 STATISTIC(SubstCount, "The # of substituted instructions");
 
 //-----------------------------------------------------------------------------
 // MBASub Implementaion
 //-----------------------------------------------------------------------------
-bool MBASub::runOnBasicBlock(BasicBlock &BB) {
+bool MBASubCrash::runOnBasicBlock(BasicBlock &BB) {
   bool Changed = false;
 
   // Loop over all instructions in the block. Replacing instructions requires
   // iterators, hence a for-range loop wouldn't be suitable.
-  for (auto Inst = BB.begin(), IE = BB.end(); Inst != IE; ++Inst) {
-
+  for (auto &Inst : BB)
+  //Change (auto Inst = BB.begin(), IE = BB.end(); Inst != IE; ++Inst) into (auto &Inst : BB) to cause iterator invalidation
+  {
     // Skip non-binary (e.g. unary or compare) instruction.
-    auto *BinOp = dyn_cast<BinaryOperator>(Inst);
+    auto *BinOp = dyn_cast<BinaryOperator>(&Inst);
     if (!BinOp)
       continue;
 
-    /// Skip instructions other than integer sub.
-    // source code : llvm/include/llvm/IR/Instruction.def
-    // HANDLE_BINARY_INST(15, Sub  , BinaryOperator)
     unsigned Opcode = BinOp->getOpcode();
     if (Opcode != Instruction::Sub || !BinOp->getType()->isIntegerTy())
       continue;
-
     // A uniform API for creating instructions and inserting
     // them into basic blocks.
     IRBuilder<> Builder(BinOp);
-
-  //-----------------------------------------------------------------------------
-  // Debug process:
-  // step 0: original instruction
-  // %3 = alloca i32, align 4
-  // %4 = alloca i32, align 4
-  // store i32 %0, ptr %3, align 4
-  // store i32 %1, ptr %4, align 4
-  // %5 = load i32, ptr %3, align 4
-  // %6 = load i32, ptr %4, align 4
-  // %7 = sub nsw i32 %5, %6
-  // ret i32 %7
-  //step 1: create not instruction
-  // %3 = alloca i32, align 4
-  //   %4 = alloca i32, align 4
-  //   store i32 %0, ptr %3, align 4
-  //   store i32 %1, ptr %4, align 4
-  //   %5 = load i32, ptr %3, align 4
-  //   %6 = load i32, ptr %4, align 4
-  //   %7 = xor i32 %6, -1
-  //  8 = sub nsw i32 %5, %6
-  //   ret i32 %8
-  // step 2: create add instruction
-  // %3 = alloca i32, align 4
-  // %4 = alloca i32, align 4
-  // store i32 %0, ptr %3, align 4
-  // store i32 %1, ptr %4, align 4
-  // %5 = load i32, ptr %3, align 4
-  // %6 = load i32, ptr %4, align 4
-  // %7 = xor i32 %6, -1
-  // %8 = add i32 %5, %7
-  // %9 = sub nsw i32 %5, %6
-  // ret i32 %9
-  // step 3: create add instruction and remove old instruction
-  //%3 = alloca i32, align 4
-  // %4 = alloca i32, align 4
-  // store i32 %0, ptr %3, align 4
-  // store i32 %1, ptr %4, align 4
-  // %5 = load i32, ptr %3, align 4
-  // %6 = load i32, ptr %4, align 4
-  // %7 = xor i32 %6, -1
-  // %8 = add i32 %5, %7
-  // %9 = sub nsw i32 %5, %6
-  // ret i32 %9
-  //-----------------------------------------------------------------------------
 
     // Create an instruction representing (a + ~b) + 1
     // %7 = sub nsw i32 %5, %6 %5=getOperand(0), %6=getOperand(1)
@@ -119,16 +60,17 @@ bool MBASub::runOnBasicBlock(BasicBlock &BB) {
 
     // Replace `(a - b)` (original instructions) with `(a + ~b) + 1`
     // (the new instruction)
-    ReplaceInstWithInst(&BB, Inst, NewValue); // replace %9 = sub nsw i32 %5, %6 to %9 = add i32 %8, 1 (step 4)
+    ReplaceInstWithInst(&Inst, NewValue);
     Changed = true;
 
     // Update the statistics
     ++SubstCount;
   }
+
   return Changed;
 }
 
-PreservedAnalyses MBASub::run(llvm::Function &F,
+PreservedAnalyses MBASubCrash::run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &) {
   bool Changed = false;
 
@@ -138,18 +80,17 @@ PreservedAnalyses MBASub::run(llvm::Function &F,
   return (Changed ? llvm::PreservedAnalyses::none()
                   : llvm::PreservedAnalyses::all());
 }
-
 //-----------------------------------------------------------------------------
 // New PM Registration
 //-----------------------------------------------------------------------------
-llvm::PassPluginLibraryInfo getMBASubPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "mba-sub", LLVM_VERSION_STRING,
+llvm::PassPluginLibraryInfo getMBASubCrashPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "mba-sub-crash", LLVM_VERSION_STRING,
           [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
                    ArrayRef<PassBuilder::PipelineElement>) {
-                  if (Name == "mba-sub") {
-                    FPM.addPass(MBASub());
+                  if (Name == "mba-sub-crash") {
+                    FPM.addPass(MBASubCrash());
                     return true;
                   }
                   return false;
@@ -159,5 +100,5 @@ llvm::PassPluginLibraryInfo getMBASubPluginInfo() {
 
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
-  return getMBASubPluginInfo();
+  return getMBASubCrashPluginInfo();
 }
