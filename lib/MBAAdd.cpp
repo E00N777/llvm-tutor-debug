@@ -44,8 +44,14 @@ bool MBAAdd::runOnBasicBlock(BasicBlock &BB) {
   // Loop over all instructions in the block. Replacing instructions requires
   // iterators, hence a for-range loop wouldn't be suitable
   for (auto Inst = BB.begin(), IE = BB.end(); Inst != IE; ++Inst) {
+    //call BB.dump()
+    //  %3 = add i8 %1, %0
+    //ret i8 %3
     // Skip non-binary (e.g. unary or compare) instructions
     auto *BinOp = dyn_cast<BinaryOperator>(Inst);
+    //HANDLE_BINARY_INST(13, Add  , BinaryOperator)
+    //(gdb) p BinOp
+    //$1 = (llvm::BinaryOperator *) 0x5555555f1b20
     if (!BinOp)
       continue;
 
@@ -89,11 +95,13 @@ bool MBAAdd::runOnBasicBlock(BasicBlock &BB) {
                         Builder.CreateAdd(
                             // e0 = a ^ b
                             Builder.CreateXor(BinOp->getOperand(0),
-                                              BinOp->getOperand(1)),
+                                              BinOp->getOperand(1)),//step 1
                             // e1 = 2 * (a & b)
                             Builder.CreateMul(
                                 Val2, Builder.CreateAnd(BinOp->getOperand(0),
-                                                        BinOp->getOperand(1))))
+                                                        BinOp->getOperand(1)) //step 2
+                                                      )
+                                                      )
                     ) // e3 = e2 * 39
                 ) // e4 = e2 + 23
             ) // e5 = e4 * 151
