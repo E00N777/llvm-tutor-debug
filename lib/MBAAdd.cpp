@@ -101,7 +101,7 @@ bool MBAAdd::runOnBasicBlock(BasicBlock &BB) {
                                 Val2, Builder.CreateAnd(BinOp->getOperand(0),
                                                         BinOp->getOperand(1)) //step 2
                                                       )
-                                                      )
+                                                      ) 
                     ) // e3 = e2 * 39
                 ) // e4 = e2 + 23
             ) // e5 = e4 * 151
