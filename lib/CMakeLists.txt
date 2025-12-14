@@ -10,6 +10,7 @@ set(LLVM_TUTOR_PLUGINS
     InjectFuncCall
     InjectFuncCallRet
     MBAAdd
+    MBAAddInt16
     MBASub
     MBASubCrash
     RIV
@@ -36,6 +37,8 @@ set(InjectFuncCallRet_SOURCES
   InjectFuncCallRet.cpp)
 set(MBAAdd_SOURCES
   MBAAdd.cpp)
+set(MBAAddInt16_SOURCES
+  MBAAddInt16.cpp)
 set(MBASub_SOURCES
   MBASub.cpp)
 set(MBASubCrash_SOURCES
