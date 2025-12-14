@@ -166,9 +166,10 @@ You can build **llvm-tutor** (and all the provided pass plugins) as follows:
 
 ```bash
 cd <build/dir>
-cmake -DLT_LLVM_INSTALL_DIR=<installation/dir/of/llvm/21> <source/dir/llvm/tutor>
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DLT_LLVM_INSTALL_DIR=<installation/dir/of/llvm/21> <source/dir/llvm/tutor>
 make
 ```
+The `-DCMAKE_EXPORT_COMPILE_COMMANDS` variable will auto generate compile_commands.json for development.
 
 The `LT_LLVM_INSTALL_DIR` variable should be set to the root of either the
 installation or build directory of LLVM 21. It is used to locate the
