@@ -40,17 +40,23 @@
 #include "llvm/Support/Format.h"
 
 #include <deque>
+#include <llvm-21/llvm/IR/BasicBlock.h>
 
 using namespace llvm;
 
 // DominatorTree node types used in RIV. One could use auto instead, but IMO
 // being verbose makes it easier to follow.
 using NodeTy = DomTreeNodeBase<llvm::BasicBlock> *;
+//NodeTy myNode; // example of how to declare a variable of type NodeTy
+//DomTreeNodeBase<llvm::BasicBlock>* myNode; // equivalent declaration
 // A map that a basic block BB holds a set of pointers to values defined in BB.
 using DefValMapTy = RIV::Result;
+// using Result = llvm::MapVector<llvm::BasicBlock const *,
+//                                llvm::SmallPtrSet<llvm::Value *, 8>>;
 
 // Pretty-prints the result of this analysis
 static void printRIVResult(llvm::raw_ostream &OutS, const RIV::Result &RIVMap);
+static void debugRIVMap(const llvm::MapVector<const llvm::BasicBlock *, llvm::SmallPtrSet<llvm::Value *, 8>> &Map);
 
 //-----------------------------------------------------------------------------
 // RIV Implementation
@@ -190,4 +196,24 @@ static void printRIVResult(raw_ostream &OutS, const RIV::Result &RIVMap) {
   }
 
   OutS << "\n\n";
+}
+
+//------------------------------------------------------------------------------
+// Debug functions
+//------------------------------------------------------------------------------
+static void debugRIVMap(const llvm::MapVector<const llvm::BasicBlock *, 
+                                              llvm::SmallPtrSet<llvm::Value *, 8>> &Map)
+{
+  for(const auto &Pair : Map) 
+  {
+    llvm::errs() << "BasicBlock: ";
+    Pair.first->printAsOperand(llvm::errs(), false);
+    llvm::errs() << "\n Values:";
+    for (const auto *V : Pair.second) {
+      V->printAsOperand(llvm::errs(), false);
+      llvm::errs() << ", ";
+    }
+    llvm::errs() << "\n-----------------\n";
+  }
+
 }
