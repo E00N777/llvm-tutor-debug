@@ -85,6 +85,7 @@ RIV::Result RIV::buildRIV(Function &F, NodeTy CFGRoot) {
   for (auto &Global : F.getParent()->globals())
     if (Global.getValueType()->isIntegerTy())
       EntryBBValues.insert(&Global);
+    //Global is empty in input_for_riv.c
 
   for (Argument &Arg : F.args())
     if (Arg.getType()->isIntegerTy())
@@ -97,6 +98,11 @@ RIV::Result RIV::buildRIV(Function &F, NodeTy CFGRoot) {
 
     // Get the values defined in Parent
     auto &ParentDefs = DefinedValuesMap[Parent->getBlock()];
+    //[Debug]: call (Parent->getBlock()).dump()
+    // %4 = add nsw i32 %0, 123
+    // %5 = icmp sgt i32 %0, 0
+    // br i1 %5, label %6, label %17
+
     // Get the RIV set of for Parent
     // (Since RIVMap is updated on every iteration, its contents are likely to
     // be moved around when resizing. This means that we need a copy of it
@@ -106,8 +112,10 @@ RIV::Result RIV::buildRIV(Function &F, NodeTy CFGRoot) {
 
     // Loop over all BBs that Parent dominates and update their RIV sets
     for (NodeTy Child : *Parent) {
+      //[debug]: p (*Child.TheBB).dump() 
       BBsToProcess.push_back(Child);
       auto ChildBB = Child->getBlock();
+      //Child->getBlock is same with  p (*Child.TheBB).dump()
 
       // Add values defined in Parent to the current child's set of RIV
       ResultMap[ChildBB].insert(ParentDefs.begin(), ParentDefs.end());
@@ -201,6 +209,7 @@ static void printRIVResult(raw_ostream &OutS, const RIV::Result &RIVMap) {
 //------------------------------------------------------------------------------
 // Debug functions
 //------------------------------------------------------------------------------
+__attribute__((used))
 static void debugRIVMap(const llvm::MapVector<const llvm::BasicBlock *, 
                                               llvm::SmallPtrSet<llvm::Value *, 8>> &Map)
 {
@@ -216,4 +225,27 @@ static void debugRIVMap(const llvm::MapVector<const llvm::BasicBlock *,
     llvm::errs() << "\n-----------------\n";
   }
 
+}
+__attribute__((used))
+static void debugSet(const llvm::SmallPtrSet<llvm::Value *, 8> &Set) {
+    llvm::errs() << "\n=== Debugging RIV Set (Size: " << Set.size() << ") ===\n";
+    
+    if (Set.empty()) {
+        llvm::errs() << "  (Empty)\n";
+        llvm::errs() << "==========================================\n";
+        return;
+    }
+
+    for (const auto *V : Set) {
+        if (!V) continue;
+
+        llvm::errs() << "  [Ptr: " << V << "]  "; // 打印内存地址，方便和 GDB 对应
+        
+        // printAsOperand 会打印出 "%1", "%a", "i32 42" 这种简洁形式
+        // 第二个参数 false 表示不打印类型（即只打印 %1，不打印 i32 %1），看起来更清爽
+        V->printAsOperand(llvm::errs(), false); 
+        
+        llvm::errs() << "\n";
+    }
+    llvm::errs() << "==========================================\n";
 }
