@@ -101,6 +101,7 @@ using namespace llvm;
 DuplicateBB::BBToSingleRIVMap
 DuplicateBB::findBBsToDuplicate(Function &F, const RIV::Result &RIVResult) {
   BBToSingleRIVMap BlocksToDuplicate;
+  //using BBToSingleRIVMap = std::vector<std::tuple<llvm::BasicBlock *, llvm::Value *>>;
 
   for (BasicBlock &BB : F) {
     // Basic blocks which are landing pads are used for handling exceptions.
@@ -135,6 +136,7 @@ DuplicateBB::findBBsToDuplicate(Function &F, const RIV::Result &RIVResult) {
     // Store the binding between the current BB and the context variable that
     // will be used for the `if-then-else` construct.
     BlocksToDuplicate.emplace_back(&BB, *Iter);
+    //emplace_back is much more efficient than push_back
   }
 
   return BlocksToDuplicate;
@@ -240,10 +242,14 @@ PreservedAnalyses DuplicateBB::run(llvm::Function &F,
     pRNG = F.getParent()->createRNG("duplicate-bb");
   
   BBToSingleRIVMap Targets = findBBsToDuplicate(F, FAM.getResult<RIV>(F));
+  //RIV return a map: llvm::MapVector<const llvm::BasicBlock *, 
+  //                                    llvm::SmallPtrSet<llvm::Value *, 8>>
+
 
   // This map is used to keep track of the new bindings. Otherwise, the
   // information from RIV will become obsolete.
   ValueToPhiMap ReMapper;
+  //using ValueToPhiMap = std::map<llvm::Value *, llvm::Value *>;
 
   // Duplicate
   for (auto &BB_Ctx : Targets) {

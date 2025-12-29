@@ -147,7 +147,7 @@ bool MergeBB::mergeDuplicatedBlock(BasicBlock *BB1,
     return false;
 
   // Only merge CFG edges of unconditional branch
-  BranchInst *BB1Term = dyn_cast<BranchInst>(BB1->getTerminator());
+  BranchInst *BB1Term = dyn_cast<BranchInst>(BB1->getTerminator());//getTerminator(): get the last instruction in the basic block
   if (!(BB1Term && BB1Term->isUnconditional()))
     return false;
 
