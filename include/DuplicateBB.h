@@ -48,7 +48,7 @@ struct DuplicateBB : public llvm::PassInfoMixin<DuplicateBB> {
   //  * duplicates BB
   //  * adds PHI nodes as required
   void cloneBB(llvm::BasicBlock &BB, llvm::Value *ContextValue,
-               ValueToPhiMap &ReMapper);
+               ValueToPhiMap &ReMapper,llvm::Function &F);
 
   unsigned DuplicateBBCount = 0;
 

@@ -87,6 +87,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include <llvm-21/llvm/IR/Function.h>
 #include <random>
 
 #define DEBUG_TYPE "duplicate-bb"
@@ -143,7 +144,7 @@ DuplicateBB::findBBsToDuplicate(Function &F, const RIV::Result &RIVResult) {
 }
 
 void DuplicateBB::cloneBB(BasicBlock &BB, Value *ContextValue,
-                          ValueToPhiMap &ReMapper) {
+                          ValueToPhiMap &ReMapper,Function &F) {
   // Don't duplicate Phi nodes - start right after them
   BasicBlock::iterator BBHead = BB.getFirstNonPHIIt();
 
@@ -164,13 +165,16 @@ void DuplicateBB::cloneBB(BasicBlock &BB, Value *ContextValue,
 
   // Give the new basic blocks some meaningful names. This is not required, but
   // makes the output easier to read.
-  std::string DuplicatedBBId = std::to_string(DuplicateBBCount);
+  std::string DuplicatedBBId = std::to_string(DuplicateBBCount);//Defined in DuplicateBB.h : unsigned DuplicateBBCount = 0;
   ThenTerm->getParent()->setName("lt-clone-1-" + DuplicatedBBId);
   ElseTerm->getParent()->setName("lt-clone-2-" + DuplicatedBBId);
+  //ThenTerm and ElseTerm are instructions, getParent() gets the BasicBlock containing them
   Tail->setName("lt-tail-" + DuplicatedBBId);
+  //Tail is a BasicBlock, so we can set its name directly
   ThenTerm->getParent()->getSinglePredecessor()->setName("lt-if-then-else-" +
                                                          DuplicatedBBId);
-
+  //getSinglePredecessor() gets the BasicBlock that branches to ThenTerm's parent
+  
   // Variables to keep track of the new bindings
   ValueToValueMapTy TailVMap, ThenVMap, ElseVMap;
 
@@ -201,15 +205,24 @@ void DuplicateBB::cloneBB(BasicBlock &BB, Value *ContextValue,
     RemapInstruction(ThenClone, ThenVMap, RF_IgnoreMissingLocals);
     ThenClone->insertBefore(ThenTerm->getIterator());
     ThenVMap[&Instr] = ThenClone;
+  //     (gdb) call debugVMap(ThenVMap)
+  // --- VMap Dump (1 elements) ---
+  //  Old:   %4 = add nsw i32 %1, %0
+  //  New:   %3 = add nsw i32 %1, %0
+  // -------------------------------
 
     // Operands of ElseClone still hold references to the original BB.
     // Update/remap them.
     RemapInstruction(ElseClone, ElseVMap, RF_IgnoreMissingLocals);
     ElseClone->insertBefore(ElseTerm->getIterator());
     ElseVMap[&Instr] = ElseClone;
+  //     --- VMap Dump (1 elements) ---
+  //  Old:   %5 = add nsw i32 %1, %0
+  //  New:   %4 = add nsw i32 %1, %0
+  // --------------------------------
 
     // Instructions that don't produce values can be safely removed from Tail
-    if (ThenClone->getType()->isVoidTy()) {
+    if (ThenClone->getType()->isVoidTy()) {//same with Instr.getType()->isVoidTy()
       ToRemove.push_back(&Instr);
       continue;
     }
@@ -253,7 +266,7 @@ PreservedAnalyses DuplicateBB::run(llvm::Function &F,
 
   // Duplicate
   for (auto &BB_Ctx : Targets) {
-    cloneBB(*std::get<0>(BB_Ctx), std::get<1>(BB_Ctx), ReMapper);
+    cloneBB(*std::get<0>(BB_Ctx), std::get<1>(BB_Ctx), ReMapper, F);
   }
 
   DuplicateBBCountStats = DuplicateBBCount;
@@ -282,4 +295,29 @@ llvm::PassPluginLibraryInfo getDuplicateBBPluginInfo() {
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
   return getDuplicateBBPluginInfo();
+}
+//------------------------------------------------------------------------------------
+//Helper functions for debugging
+//------------------------------------------------------------------------------------
+__attribute__((used))
+static void debugSet(const llvm::SmallPtrSet<llvm::Value *, 8> &Set) {
+    llvm::errs() << "\n=== Debugging Set (Size: " << Set.size() << ") ===\n";
+    for (const auto *V : Set) {
+        if (!V) continue;
+        llvm::errs() << "  "; 
+        V->printAsOperand(llvm::errs(), false); 
+        llvm::errs() << "\n";
+    }
+    llvm::errs() << "==========================================\n";
+}
+
+__attribute__((used))
+static void debugVMap(const llvm::ValueToValueMapTy &VMap) {
+    llvm::errs() << "--- VMap Dump (" << VMap.size() << " elements) ---\n";
+    // 直接遍历，不用关心底层 Buckets
+    for (auto const &Pair : VMap) {
+        llvm::errs() << " Old: " << *Pair.first << "\n";
+        llvm::errs() << " New: " << *Pair.second << "\n\n";
+    }
+    llvm::errs() << "--------------------------------\n";
 }
