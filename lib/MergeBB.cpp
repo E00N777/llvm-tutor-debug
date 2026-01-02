@@ -80,7 +80,7 @@ bool MergeBB::canMergeInstructions(ArrayRef<Instruction *> Insts) {
     return false;
 
   // Each instruction must have exactly zero or one use.
-  bool HasUse = !Inst1->user_empty();
+  bool HasUse = !Inst1->user_empty();//Just for single use chain
   for (auto *I : Insts) {
     if (HasUse && !I->hasOneUse())
       return false;
@@ -164,14 +164,14 @@ bool MergeBB::mergeDuplicatedBlock(BasicBlock *BB1,
   const PHINode *PN = dyn_cast<PHINode>(II);
   Value *InValBB1 = nullptr;
   Instruction *InInstBB1 = nullptr;
-  BBSucc->getFirstNonPHI();
+  
   if (nullptr != PN) {
     // Do not optimize if multiple PHI instructions exist in the successor (to
     // keep things relatively simple)
     if (++II != BBSucc->end() && isa<PHINode>(II))
       return false;
 
-    InValBB1 = PN->getIncomingValueForBlock(BB1);
+    InValBB1 = PN->getIncomingValueForBlock(BB1);//%res = phi [%val_from_BB1, BB1], [%val_from_B, B]  getIncomingValueForBlock(A) returns %val_from_
     InInstBB1 = dyn_cast<Instruction>(InValBB1);
   }
 
